@@ -1,0 +1,13 @@
+.venv/
+.build/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+build/
+dist/
+*.sqlite3*
+*.db
+*.log
+fabric_mod/.gradle/
+fabric_mod/build/
+release-assets/

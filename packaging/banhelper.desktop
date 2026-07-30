@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=BanHelper
+Comment=Локальный помощник модератора Minecraft
+Exec=BanHelper.grxt
+Icon=banhelper
+Terminal=false
+Categories=Utility;Game;
+StartupWMClass=BanHelper

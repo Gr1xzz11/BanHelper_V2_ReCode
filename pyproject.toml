@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "banhelper"
+version = "2.0.0"
+description = "Fast local Fabric ban companion"
+requires-python = ">=3.11"
+dependencies = ["PySide6>=6.8,<7"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-qt>=4.4", "pyinstaller>=6.10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.setuptools.packages.find]
+include = ["banhelper*"]

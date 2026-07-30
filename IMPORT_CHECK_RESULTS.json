@@ -1,0 +1,13 @@
+{
+  "mode": "transactional dry-run against the attached legacy data",
+  "added": 125,
+  "skipped_as_duplicates": 125,
+  "damaged": 0,
+  "sources": ["data/bans.json", "data_v2/history.json", "data_v2/settings.json", "data/config.json"],
+  "history_records": 125,
+  "current_queue": 0,
+  "waiting_queue": 0,
+  "imported_total_counter": 185,
+  "imported_week_counter": 43,
+  "notes": "Cloud, OBS, Discord and S3 fields were ignored. The source files were not modified."
+}

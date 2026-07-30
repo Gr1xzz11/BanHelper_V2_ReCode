@@ -1,0 +1,33 @@
+{
+  "measured_at": "2026-07-29",
+  "environment": "Linux, Python 3.14, Qt offscreen for automated tests",
+  "full_http_pipeline": {
+    "events": 100,
+    "minimum_ms": 7.495,
+    "median_ms": 16.617,
+    "p95_ms": 26.512,
+    "maximum_ms": 29.224,
+    "lost": 0,
+    "duplicates_created": 0,
+    "duplicates_rejected": 100,
+    "http_accepted": 100,
+    "duplicate_http_accepted": 100,
+    "first_delivery_wall_ms": 77.05,
+    "duplicate_delivery_wall_ms": 70.367,
+    "clean_shutdown": true
+  },
+  "sqlite_batch": {
+    "events": 100,
+    "minimum_ms": 6.436,
+    "median_ms": 6.436,
+    "p95_ms": 6.436,
+    "maximum_ms": 6.436,
+    "lost": 0,
+    "duplicates_created": 0,
+    "duplicates_rejected": 100,
+    "database_batch_ms": 4.218,
+    "duplicate_batch_ms": 1.615,
+    "queue_items": 100,
+    "second_delivery_accepted": 0
+  }
+}

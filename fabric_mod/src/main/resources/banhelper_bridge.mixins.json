@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "ru.gr1xzz1.banhelper.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["ChatHudMixin"],
+  "injectors": { "defaultRequire": 1 }
+}

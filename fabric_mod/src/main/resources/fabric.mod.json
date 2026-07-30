@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "banhelper_bridge",
+  "version": "${version}",
+  "name": "BanHelper Bridge",
+  "description": "Локально передаёт события банов и hover-причины в BanHelper 2.",
+  "authors": ["Gr1xzz1"],
+  "environment": "client",
+  "entrypoints": { "client": ["ru.gr1xzz1.banhelper.BanHelperBridgeClient"] },
+  "mixins": ["banhelper_bridge.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.10",
+    "minecraft": "1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
