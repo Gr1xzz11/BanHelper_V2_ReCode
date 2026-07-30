@@ -21,15 +21,15 @@ The bundle contains Python, PySide6, the ICO/PNG/SVG application icons and
 
 ### Windows
 
-Expected artifact: `dist/windows/BanHelper.exe`.
+- `dist/windows/BanHelper.exe`
+- Format: Windows x86-64 GUI onefile executable (PyInstaller, no console).
+- Size: 51,045,169 bytes.
+- SHA-256: `6a50b3e2928f604af7c3d0728f27608424af2cac2f06d427c71cfafc00e6394f`
 
-The Windows spec, icon embedding, smoke-test and build script are complete, but
-the EXE was **not built or tested in this Linux environment**. This checkout is
-not a Git repository and has no GitHub remote, so the prepared workflow could
-not be submitted or run without inventing a repository destination. After the
-project is pushed, run `.github/workflows/build-windows.yml` with
-`workflow_dispatch`; it builds on `windows-latest`, smoke-tests the moved EXE
-with isolated AppData, and uploads `BanHelper-Windows`.
+The EXE was built and smoke-tested on GitHub `windows-latest` with Python
+3.13.14. The test moved the executable, launched it without system Python,
+waited for clean exit and verified that SQLite was created in isolated AppData:
+https://github.com/Gr1xzz11/BanHelper_V2_ReCode/actions/runs/30505683477
 
 ### Fabric mod
 
@@ -97,6 +97,8 @@ Windows stores settings and data in `%APPDATA%\BanHelper` and cache files in
 - XDG write test: SQLite created under the isolated XDG data directory; no
   database was written beside the executable or into PyInstaller extraction.
 - Real GUI startup: passed on Wayland and X11/XWayland.
+- Windows onefile build, moved-artifact startup, embedded icon/resources and
+  AppData write test: passed on GitHub `windows-latest`.
 - JAR SHA-256 matches the pre-existing release JAR.
 - Existing Fabric test reports contain 8 passing tests. They were not rerun
   after the final packaging-only changes because the post-restart host only has
@@ -105,9 +107,8 @@ Windows stores settings and data in `%APPDATA%\BanHelper` and cache files in
 
 ## Known limitations
 
-- Windows could not be built or tested without a Windows runner or a configured
-  GitHub repository. Do not present `BanHelper.exe` as verified until the
-  workflow succeeds.
+- Windows was smoke-tested on a clean hosted Windows runner, but not manually
+  exercised on physical Windows 10 and Windows 11 machines.
 - The Linux onefile was built on CachyOS with glibc 2.44. For maximum
   compatibility with older distributions, run the same script on an older
   manylinux-compatible build host.
