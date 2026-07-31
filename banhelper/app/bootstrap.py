@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from banhelper.app.paths import AppPaths
 from banhelper.app.resources import application_icon, fabric_jar
+from banhelper.domain.validation import normalize_reason
 from banhelper.infrastructure.database import Database
 from banhelper.infrastructure.fabric_listener import FabricListener
 from banhelper.infrastructure.logging_setup import configure_logging, shutdown_logging
@@ -26,11 +27,53 @@ from banhelper.ui.theme import build_stylesheet
 class ListenerManager(QObject):
     changed = Signal(bool, str, int, str)
     test_completed = Signal(bool, str)
+    copy_requested = Signal()
 
     def __init__(self, service: BanService, settings: dict):
-        super().__init__(); self.service = service; self.listener: FabricListener | None = None
-        self.configuration = {}; self._stop_thread: threading.Thread | None = None
+        super().__init__()
+        self.service = service
+        self.listener: FabricListener | None = None
+        self.configuration = {}
+        self._stop_thread: threading.Thread | None = None
+        self._current_event_id: str | None = None
+        self._current_lock = threading.Lock()
+        self.service.signals.current_changed.connect(self._remember_current)
         self.apply(settings)
+
+    def _remember_current(self, current) -> None:
+        with self._current_lock:
+            self._current_event_id = str(current.event_id) if current else None
+
+    def _require_current(self) -> str:
+        with self._current_lock:
+            event_id = self._current_event_id
+        if not event_id:
+            raise ValueError("Нет текущей карточки")
+        return event_id
+
+    def handle_action(self, action: str, value: object | None) -> bool:
+        """Translate the small OpenDeck API into the existing service queue."""
+        action = str(action).strip().lower()
+        if action == "mode":
+            mode = str(value or "").strip().upper()
+            if mode not in {"FT", "RW"}:
+                raise ValueError("Режим должен быть FT или RW")
+            return self.service.command("save_settings", {"manual_mode": mode})
+        if action == "reason":
+            event_id = self._require_current()
+            reason = normalize_reason(str(value or ""))
+            return self.service.command("update_pending_reason", (event_id, reason))
+        if action == "confirm":
+            self._require_current()
+            return self.service.command("confirm")
+        if action == "skip":
+            self._require_current()
+            return self.service.command("skip_current")
+        if action == "copy":
+            self._require_current()
+            self.copy_requested.emit()
+            return True
+        raise ValueError(f"Неизвестное действие OpenDeck: {action}")
 
     def apply(self, settings: dict) -> None:
         configuration = {
@@ -40,24 +83,40 @@ class ListenerManager(QObject):
             "enabled": bool(settings.get("listener_autostart", True)),
             "fallback_mode": str(settings.get("manual_mode", "FT")),
         }
-        if configuration == self.configuration and self.listener and self.listener.running: return
+        if configuration == self.configuration and self.listener and self.listener.running:
+            return
         self.configuration = configuration
+
         def restart():
             old = self.listener
             if old:
-                old.request_stop(); old.wait(3)
+                old.request_stop()
+                old.wait(3)
             if not configuration["enabled"]:
-                self.listener = None; self.changed.emit(False, configuration["host"], configuration["port"], "Listener выключен"); self.service.signals.log.emit("INFO", "Fabric listener выключен в настройках"); return
+                self.listener = None
+                self.changed.emit(False, configuration["host"], configuration["port"], "Listener выключен")
+                self.service.signals.log.emit("INFO", "Fabric/OpenDeck listener выключен в настройках")
+                return
             try:
                 new_listener = FabricListener(
-                    configuration["host"], configuration["port"], configuration["token"],
-                    self.service.submit_event, self.service.signals.log.emit, configuration["fallback_mode"],
+                    configuration["host"],
+                    configuration["port"],
+                    configuration["token"],
+                    self.service.submit_event,
+                    self.service.signals.log.emit,
+                    configuration["fallback_mode"],
+                    on_action=self.handle_action,
                 )
-                new_listener.start(); self.listener = new_listener
+                new_listener.start()
+                self.listener = new_listener
                 self.changed.emit(True, new_listener.host, new_listener.port, "")
             except Exception as exc:
-                self.listener = None; self.changed.emit(False, configuration["host"], configuration["port"], str(exc)); self.service.signals.log.emit("ERROR", f"Fabric listener не запущен: {exc}")
-        self._stop_thread = threading.Thread(target=restart, name="ListenerRestart", daemon=True); self._stop_thread.start()
+                self.listener = None
+                self.changed.emit(False, configuration["host"], configuration["port"], str(exc))
+                self.service.signals.log.emit("ERROR", f"Fabric/OpenDeck listener не запущен: {exc}")
+
+        self._stop_thread = threading.Thread(target=restart, name="ListenerRestart", daemon=True)
+        self._stop_thread.start()
 
     def metrics(self) -> tuple[int, int, float]:
         listener = self.listener
@@ -69,12 +128,14 @@ class ListenerManager(QObject):
 
     def test_async(self) -> None:
         configuration = dict(self.configuration)
+
         def check() -> None:
             connection = None
             try:
                 connection = http.client.HTTPConnection(configuration["host"], configuration["port"], timeout=1.5)
                 connection.request("GET", "/status")
-                response = connection.getresponse(); payload = json.loads(response.read().decode("utf-8"))
+                response = connection.getresponse()
+                payload = json.loads(response.read().decode("utf-8"))
                 ok = response.status == 200 and payload.get("protocol_version") == 2
                 self.test_completed.emit(ok, "Listener отвечает; протокол v2" if ok else "Listener вернул несовместимый ответ")
             except Exception as exc:
@@ -82,22 +143,30 @@ class ListenerManager(QObject):
             finally:
                 if connection:
                     connection.close()
+
         threading.Thread(target=check, name="ListenerSelfTest", daemon=True).start()
 
     def request_stop(self) -> None:
-        if self.listener: self.listener.request_stop()
+        if self.listener:
+            self.listener.request_stop()
 
     def wait(self) -> bool:
-        if self._stop_thread and self._stop_thread.is_alive(): self._stop_thread.join(3)
+        if self._stop_thread and self._stop_thread.is_alive():
+            self._stop_thread.join(3)
         return self.listener.wait(3) if self.listener else True
 
 
 class Runtime:
     def __init__(self, paths: AppPaths, service: BanService, listeners: ListenerManager, plugins: PluginManager):
-        self.paths = paths; self.service = service; self.listeners = listeners; self.plugins = plugins
+        self.paths = paths
+        self.service = service
+        self.listeners = listeners
+        self.plugins = plugins
 
     def request_stop(self) -> None:
-        self.plugins.shutdown(); self.listeners.request_stop(); self.service.request_stop()
+        self.plugins.shutdown()
+        self.listeners.request_stop()
+        self.service.request_stop()
 
     def wait(self) -> tuple[bool, bool]:
         return self.listeners.wait(), self.service.wait(5.0)
@@ -157,11 +226,21 @@ def run(paths: AppPaths | None = None, *, auto_quit_ms: int | None = None, enfor
     try:
         window = MainWindow(service, app_paths, listeners)
         attach_plugin_menu(window, plugins)
+        listeners.copy_requested.connect(window.current_panel.copy.click)
         if instance is not None:
             instance.activation_requested.connect(window.activate)
-        listeners.changed.connect(lambda ok, host, port, error: window.fabric_panel.set_running(host, port) if ok else window.fabric_panel.set_error(error))
+        listeners.changed.connect(
+            lambda ok, host, port, error: window.fabric_panel.set_running(host, port)
+            if ok
+            else window.fabric_panel.set_error(error)
+        )
         service.start()
-        QTimer.singleShot(150, lambda: window.fabric_panel.set_running(listeners.listener.host, listeners.listener.port) if listeners.listener and listeners.listener.running else None)
+        QTimer.singleShot(
+            150,
+            lambda: window.fabric_panel.set_running(listeners.listener.host, listeners.listener.port)
+            if listeners.listener and listeners.listener.running
+            else None,
+        )
         metrics = QTimer()
         metrics.setInterval(1000)
         metrics.timeout.connect(lambda: window.fabric_panel.update_metrics(*listeners.metrics()))
