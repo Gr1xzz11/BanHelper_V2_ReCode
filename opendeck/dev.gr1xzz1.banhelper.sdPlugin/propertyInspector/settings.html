@@ -8,7 +8,8 @@
     label { display: block; margin: 12px 0 4px; }
     input { width: 100%; box-sizing: border-box; padding: 8px; color: #ffffff; background: #10131a; border: 1px solid #555d6d; border-radius: 6px; }
     button { margin: 14px 8px 0 0; padding: 8px 12px; color: #ffffff; background: #586cff; border: 0; border-radius: 6px; cursor: pointer; }
-    #status { margin-top: 12px; color: #9fb0ff; }
+    button:disabled { opacity: .55; cursor: default; }
+    #status { margin-top: 12px; color: #9fb0ff; white-space: pre-wrap; user-select: text; }
   </style>
 </head>
 <body>
@@ -24,61 +25,101 @@
 
 <script>
 "use strict";
-let socket = null;
-let uuid = "";
+var socket = null;
+var uuid = "";
 
+function byId(id) { return document.getElementById(id); }
 function send(message) {
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify(message));
   }
 }
+function describeError(error) {
+  if (error === null || error === undefined) return "неизвестная ошибка";
+  if (typeof error === "string") return error;
+  if (typeof error.message === "string" && error.message) return error.message;
+  try { return JSON.stringify(error); } catch (_) { return String(error); }
+}
+function normalizeEndpoint(value) {
+  var endpoint = String(value || "").trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(endpoint)) throw new Error("адрес должен начинаться с http://");
+  return endpoint;
+}
+function parsePayload(text) {
+  if (!text) return {};
+  try { return JSON.parse(text); } catch (_) { return {}; }
+}
 
-function connectElgatoStreamDeckSocket(port, inUUID, registerEvent, info, actionInfo) {
+function connectElgatoStreamDeckSocket(port, inUUID, registerEvent) {
   uuid = inUUID;
-  socket = new WebSocket(`ws://127.0.0.1:${port}`);
-  socket.onopen = () => {
-    send({ event: registerEvent, uuid });
+  socket = new WebSocket("ws://127.0.0.1:" + port);
+  socket.onopen = function () {
+    send({ event: registerEvent, uuid: uuid });
     send({ event: "getGlobalSettings", context: uuid });
   };
-  socket.onmessage = (event) => {
-    let message;
-    try {
-      message = JSON.parse(event.data);
-    } catch {
-      return;
-    }
+  socket.onmessage = function (event) {
+    var message;
+    try { message = JSON.parse(event.data); } catch (_) { return; }
     if (message.event !== "didReceiveGlobalSettings") return;
-    const current = message.payload?.settings || {};
-    if (current.endpoint) document.getElementById("endpoint").value = current.endpoint;
-    if (current.token !== undefined) document.getElementById("token").value = current.token;
+    var payload = message.payload || {};
+    var current = payload.settings || {};
+    if (current.endpoint) byId("endpoint").value = current.endpoint;
+    if (current.token !== undefined) byId("token").value = current.token;
   };
 }
 
-document.getElementById("save").onclick = () => {
+byId("save").onclick = function () {
   send({
     event: "setGlobalSettings",
     context: uuid,
     payload: {
-      endpoint: document.getElementById("endpoint").value.trim(),
-      token: document.getElementById("token").value
+      endpoint: byId("endpoint").value.trim(),
+      token: byId("token").value
     }
   });
-  document.getElementById("status").textContent = "Сохранено";
+  byId("status").textContent = "Сохранено";
 };
 
-document.getElementById("test").onclick = async () => {
-  const status = document.getElementById("status");
+byId("test").onclick = function () {
+  var status = byId("status");
+  var button = byId("test");
+  button.disabled = true;
+  status.textContent = "Проверка…";
   try {
-    const endpoint = document.getElementById("endpoint").value.trim().replace(/\/+$/, "");
-    const token = document.getElementById("token").value;
-    const response = await fetch(endpoint + "/opendeck/status", {
-      headers: { "X-BanHelper-Token": token }
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.ok) throw new Error(payload.error || `HTTP ${response.status}`);
-    status.textContent = "Соединение работает";
+    var endpoint = normalizeEndpoint(byId("endpoint").value);
+    var token = byId("token").value;
+    var request = new XMLHttpRequest();
+    request.open("GET", endpoint + "/opendeck/status", true);
+    request.timeout = 4000;
+    request.setRequestHeader("X-BanHelper-Token", token);
+    request.onload = function () {
+      button.disabled = false;
+      var payload = parsePayload(request.responseText);
+      if (request.status >= 200 && request.status < 300 && payload.ok) {
+        status.textContent = "Соединение работает\nBanHelper API: " + endpoint;
+        return;
+      }
+      var reason = payload.error || ("HTTP " + request.status);
+      if (request.status === 401) reason = "неверный токен";
+      if (request.status === 404) reason = "запущена старая версия BanHelper без OpenDeck API";
+      status.textContent = "Ошибка: " + reason;
+    };
+    request.onerror = function () {
+      button.disabled = false;
+      status.textContent = "Ошибка: BanHelper недоступен. Проверь запуск, адрес, порт и listener.";
+    };
+    request.ontimeout = function () {
+      button.disabled = false;
+      status.textContent = "Ошибка: превышен таймаут 4 секунды";
+    };
+    request.onabort = function () {
+      button.disabled = false;
+      status.textContent = "Ошибка: запрос отменён";
+    };
+    request.send();
   } catch (error) {
-    status.textContent = "Ошибка: " + error.message;
+    button.disabled = false;
+    status.textContent = "Ошибка: " + describeError(error);
   }
 };
 </script>
