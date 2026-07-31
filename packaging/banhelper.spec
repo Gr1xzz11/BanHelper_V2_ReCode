@@ -8,6 +8,7 @@ datas = [
     (os.path.join(project_root, "assets", "banhelper.ico"), "assets"),
     (os.path.join(project_root, "assets", "banhelper.svg"), "assets"),
     (os.path.join(project_root, "assets", "banhelper.png"), "assets"),
+    (os.path.join(project_root, "builtin_plugins"), "builtin_plugins"),
     (fabric_jar, "fabric"),
 ]
 

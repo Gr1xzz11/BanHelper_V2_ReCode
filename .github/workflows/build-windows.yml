@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "banhelper/**"
+      - "builtin_plugins/**"
       - "assets/**"
       - "release/banhelper-bridge-2.0.0.jar"
       - "packaging/banhelper.spec"
@@ -17,6 +18,7 @@ on:
     branches: [main]
     paths:
       - "banhelper/**"
+      - "builtin_plugins/**"
       - "assets/**"
       - "release/banhelper-bridge-2.0.0.jar"
       - "packaging/banhelper.spec"
@@ -42,7 +44,7 @@ jobs:
       - name: Upload Windows release
         uses: actions/upload-artifact@v4
         with:
-          name: BanHelper-Windows
+          name: BanHelper-Windows-2.1.1
           path: |
             dist/windows/BanHelper.exe
             dist/windows/SHA256SUMS.txt

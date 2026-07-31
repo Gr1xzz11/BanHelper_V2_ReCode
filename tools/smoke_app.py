@@ -6,15 +6,16 @@ import tempfile
 import threading
 import time
 
-from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from banhelper.app.paths import AppPaths
 from banhelper.infrastructure.database import Database
 from banhelper.infrastructure.fabric_listener import FabricListener
 from banhelper.infrastructure.repositories import BanRepository
+from banhelper.plugins import PluginManager
 from banhelper.services.ban_service import BanService
 from banhelper.ui.main_window import MainWindow
+from banhelper.ui.plugin_menu import attach_plugin_menu
 from banhelper.ui.theme import build_stylesheet
 
 
@@ -44,6 +45,15 @@ def wait_loop(app: QApplication, predicate, timeout: float = 5.0) -> None:
     raise AssertionError("GUI smoke timeout")
 
 
+def make_plugins(paths: AppPaths, service: BanService) -> PluginManager:
+    return PluginManager(
+        paths.data_dir / "plugins",
+        paths.cache_dir / "plugins",
+        service.signals.log.emit,
+        paths.config_dir / "plugins.json",
+    )
+
+
 def run() -> dict[str, object]:
     app = QApplication.instance() or QApplication([])
     app.setStyle("Fusion"); app.setStyleSheet(build_stylesheet())
@@ -54,6 +64,10 @@ def run() -> dict[str, object]:
         connection.close()
 
         service = BanService(paths); window = MainWindow(service, paths)
+        plugins = make_plugins(paths, service); attach_plugin_menu(window, plugins)
+        assert window.plugins_menu.title() == "Плагины"
+        core = next(record for record in plugins.records() if record.metadata.plugin_id == "core-tools")
+        assert core.enabled and core.active and len(plugins.actions_for("core-tools")) == 3
         layout_updates: list[list[str]] = []; settings_updates: list[dict] = []
         service.signals.layouts_changed.connect(lambda names: layout_updates.append(list(names)))
         service.signals.settings_changed.connect(lambda values: settings_updates.append(dict(values)))
@@ -78,7 +92,7 @@ def run() -> dict[str, object]:
         window.active_layout = "Smoke"; window.save_layout()
         service.command("save_settings", {"active_layout": "Smoke"})
         wait_loop(app, lambda: any("Smoke" in names for names in layout_updates) and any(value.get("active_layout") == "Smoke" for value in settings_updates))
-        thread.join(2); window.close(); listener.request_stop(); service.request_stop()
+        thread.join(2); window.close(); plugins.shutdown(); listener.request_stop(); service.request_stop()
         assert listener.wait(3) and service.wait(3)
 
         connection = Database(paths.database).connect(); repo = BanRepository(connection)
@@ -88,15 +102,17 @@ def run() -> dict[str, object]:
         connection.close()
 
         restored_service = BanService(paths); restored_window = MainWindow(restored_service, paths)
+        restored_plugins = make_plugins(paths, restored_service); attach_plugin_menu(restored_window, restored_plugins)
         restored_service.start(); restored_window.show()
         wait_loop(app, lambda: restored_window.current is not None and restored_window.statistics.total == 1 and restored_window.active_layout == "Smoke")
         assert restored_window.current.player == "SmokePlayer_2"
         assert len(restored_window.queue_panel.items) == 1
-        restored_window.close(); restored_service.request_stop(); assert restored_service.wait(3)
+        assert restored_window.plugins_menu.title() == "Плагины"
+        restored_window.close(); restored_plugins.shutdown(); restored_service.request_stop(); assert restored_service.wait(3)
         return {
             "http_events": 3, "confirmed": 1, "restored_current": "SmokePlayer_2",
             "restored_queue": 1, "statistics_total": 1, "layout_restored": True,
-            "clean_shutdown": True,
+            "plugin_menu": True, "builtin_plugin": True, "clean_shutdown": True,
         }
 
 
