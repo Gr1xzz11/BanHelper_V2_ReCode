@@ -1,0 +1,45 @@
+name: Build Linux release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "banhelper/**"
+      - "assets/**"
+      - "release/banhelper-bridge-2.0.0.jar"
+      - "packaging/**"
+      - "requirements-build.txt"
+      - "run.py"
+      - "scripts/build_linux.sh"
+      - ".github/workflows/build-linux.yml"
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+      - name: Install Qt runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Build and smoke-test GRXT
+        run: ./scripts/build_linux.sh
+      - name: Upload Linux release
+        uses: actions/upload-artifact@v4
+        with:
+          name: BanHelper-Linux-2.1.0
+          path: |
+            dist/linux/BanHelper.grxt
+            dist/linux/SHA256SUMS.txt
+            dist/linux/banhelper.desktop
+            dist/linux/banhelper.png
+            dist/linux/banhelper.svg
+            release/banhelper-bridge-2.0.0.jar
+          if-no-files-found: error
