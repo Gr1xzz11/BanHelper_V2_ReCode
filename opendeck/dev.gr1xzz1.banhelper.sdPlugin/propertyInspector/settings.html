@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { margin: 12px; background: #1b1f27; color: #eeeeee; font: 14px sans-serif; }
+    p { color: #b8becb; }
+    label { display: block; margin: 12px 0 4px; }
+    input { width: 100%; box-sizing: border-box; padding: 8px; color: #ffffff; background: #10131a; border: 1px solid #555d6d; border-radius: 6px; }
+    button { margin: 14px 8px 0 0; padding: 8px 12px; color: #ffffff; background: #586cff; border: 0; border-radius: 6px; cursor: pointer; }
+    #status { margin-top: 12px; color: #9fb0ff; }
+  </style>
+</head>
+<body>
+  <h3>BanHelper</h3>
+  <p>Эти параметры общие для всех 15 кнопок.</p>
+  <label for="endpoint">Адрес API</label>
+  <input id="endpoint" value="http://127.0.0.1:8765">
+  <label for="token">Токен listener</label>
+  <input id="token" value="banhelper-local">
+  <button id="save">Сохранить</button>
+  <button id="test">Проверить</button>
+  <div id="status"></div>
+
+<script>
+"use strict";
+let socket = null;
+let uuid = "";
+
+function send(message) {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify(message));
+  }
+}
+
+function connectElgatoStreamDeckSocket(port, inUUID, registerEvent, info, actionInfo) {
+  uuid = inUUID;
+  socket = new WebSocket(`ws://127.0.0.1:${port}`);
+  socket.onopen = () => {
+    send({ event: registerEvent, uuid });
+    send({ event: "getGlobalSettings", context: uuid });
+  };
+  socket.onmessage = (event) => {
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (message.event !== "didReceiveGlobalSettings") return;
+    const current = message.payload?.settings || {};
+    if (current.endpoint) document.getElementById("endpoint").value = current.endpoint;
+    if (current.token !== undefined) document.getElementById("token").value = current.token;
+  };
+}
+
+document.getElementById("save").onclick = () => {
+  send({
+    event: "setGlobalSettings",
+    context: uuid,
+    payload: {
+      endpoint: document.getElementById("endpoint").value.trim(),
+      token: document.getElementById("token").value
+    }
+  });
+  document.getElementById("status").textContent = "Сохранено";
+};
+
+document.getElementById("test").onclick = async () => {
+  const status = document.getElementById("status");
+  try {
+    const endpoint = document.getElementById("endpoint").value.trim().replace(/\/+$/, "");
+    const token = document.getElementById("token").value;
+    const response = await fetch(endpoint + "/opendeck/status", {
+      headers: { "X-BanHelper-Token": token }
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+    status.textContent = "Соединение работает";
+  } catch (error) {
+    status.textContent = "Ошибка: " + error.message;
+  }
+};
+</script>
+</body>
+</html>
