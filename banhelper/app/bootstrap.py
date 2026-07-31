@@ -13,7 +13,7 @@ from banhelper.app.paths import AppPaths
 from banhelper.app.resources import application_icon, fabric_jar
 from banhelper.infrastructure.database import Database
 from banhelper.infrastructure.fabric_listener import FabricListener
-from banhelper.infrastructure.logging_setup import configure_logging
+from banhelper.infrastructure.logging_setup import configure_logging, shutdown_logging
 from banhelper.infrastructure.repositories import BanRepository
 from banhelper.infrastructure.single_instance import SingleInstance
 from banhelper.plugins import PluginManager
@@ -139,25 +139,38 @@ def run(paths: AppPaths | None = None, *, auto_quit_ms: int | None = None, enfor
         configure_logging(app_paths.logs_dir)
         service, listeners, plugins, _settings = create_runtime(app_paths)
     except Exception as exc:
+        shutdown_logging()
+        if instance is not None:
+            instance.release()
         QMessageBox.critical(None, "BanHelper не запущен", str(exc))
         return 2
+
     runtime = Runtime(app_paths, service, listeners, plugins)
-    window = MainWindow(service, app_paths, listeners)
-    if instance is not None:
-        instance.activation_requested.connect(window.activate)
-    listeners.changed.connect(lambda ok, host, port, error: window.fabric_panel.set_running(host, port) if ok else window.fabric_panel.set_error(error))
-    service.start()
-    QTimer.singleShot(150, lambda: window.fabric_panel.set_running(listeners.listener.host, listeners.listener.port) if listeners.listener and listeners.listener.running else None)
-    metrics = QTimer()
-    metrics.setInterval(1000)
-    metrics.timeout.connect(lambda: window.fabric_panel.update_metrics(*listeners.metrics()))
-    metrics.start()
-    window.show()
-    if auto_quit_ms is not None:
-        QTimer.singleShot(max(100, int(auto_quit_ms)), app.quit)
-    exit_code = app.exec()
-    runtime.request_stop()
-    listener_ok, service_ok = runtime.wait()
+    listener_ok = False
+    service_ok = False
+    exit_code = 3
+    try:
+        window = MainWindow(service, app_paths, listeners)
+        if instance is not None:
+            instance.activation_requested.connect(window.activate)
+        listeners.changed.connect(lambda ok, host, port, error: window.fabric_panel.set_running(host, port) if ok else window.fabric_panel.set_error(error))
+        service.start()
+        QTimer.singleShot(150, lambda: window.fabric_panel.set_running(listeners.listener.host, listeners.listener.port) if listeners.listener and listeners.listener.running else None)
+        metrics = QTimer()
+        metrics.setInterval(1000)
+        metrics.timeout.connect(lambda: window.fabric_panel.update_metrics(*listeners.metrics()))
+        metrics.start()
+        window.show()
+        if auto_quit_ms is not None:
+            QTimer.singleShot(max(100, int(auto_quit_ms)), app.quit)
+        exit_code = app.exec()
+    finally:
+        runtime.request_stop()
+        listener_ok, service_ok = runtime.wait()
+        if instance is not None:
+            instance.release()
+        shutdown_logging()
+
     if not listener_ok or not service_ok:
         return 3
     return exit_code
