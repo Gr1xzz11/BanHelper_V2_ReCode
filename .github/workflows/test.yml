@@ -1,0 +1,51 @@
+name: Test BanHelper
+
+on:
+  push:
+    branches:
+      - main
+      - feature/plugins-2.1.0
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.13"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install Linux Qt runtime libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements-dev.txt
+      - name: Compile Python sources
+        run: python -m compileall -q banhelper tests tools run.py
+      - name: Run plugin tests
+        run: python -m pytest -q tests/test_plugins.py --timeout=30
+      - name: Run full Linux test suite
+        if: runner.os == 'Linux'
+        run: python -m pytest -q --timeout=90 --durations=20
+      - name: Run all Windows test files in isolation
+        if: runner.os == 'Windows'
+        run: python -m tools.run_test_files
+      - name: Run application smoke test
+        run: python -m tools.smoke_app
+      - name: Run packaged-entry smoke path
+        run: python run.py --smoke-test

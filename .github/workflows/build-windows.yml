@@ -13,6 +13,17 @@ on:
       - "run.py"
       - "scripts/build_windows.ps1"
       - ".github/workflows/build-windows.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "banhelper/**"
+      - "assets/**"
+      - "release/banhelper-bridge-2.0.0.jar"
+      - "packaging/banhelper.spec"
+      - "requirements-build.txt"
+      - "run.py"
+      - "scripts/build_windows.ps1"
+      - ".github/workflows/build-windows.yml"
 
 jobs:
   windows:

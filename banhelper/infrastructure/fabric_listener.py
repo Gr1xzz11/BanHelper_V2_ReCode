@@ -3,6 +3,8 @@ from __future__ import annotations
 import hmac
 import json
 import logging
+import os
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,8 +18,18 @@ MAX_BODY_BYTES = 64 * 1024
 
 class ListenerServer(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    allow_reuse_address = os.name != "nt"
+    allow_reuse_port = False
     request_queue_size = 128
+
+    def server_bind(self) -> None:
+        # On Windows SO_REUSEADDR permits another process to bind the same
+        # address, which can silently split Fabric requests between listeners.
+        # Require exclusive ownership there; keep fast restart semantics on
+        # POSIX where SO_REUSEADDR does not allow a second live listener.
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 class FabricListener:

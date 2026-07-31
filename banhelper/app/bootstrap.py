@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import sys
-import threading
 import http.client
 import json
+import sys
+import threading
 
 from PySide6.QtCore import QObject, QTimer, Qt, Signal
 from PySide6.QtGui import QGuiApplication, QIcon
@@ -13,9 +13,10 @@ from banhelper.app.paths import AppPaths
 from banhelper.app.resources import application_icon, fabric_jar
 from banhelper.infrastructure.database import Database
 from banhelper.infrastructure.fabric_listener import FabricListener
-from banhelper.infrastructure.logging_setup import configure_logging
+from banhelper.infrastructure.logging_setup import configure_logging, shutdown_logging
 from banhelper.infrastructure.repositories import BanRepository
 from banhelper.infrastructure.single_instance import SingleInstance
+from banhelper.plugins import PluginManager
 from banhelper.services.ban_service import BanService
 from banhelper.ui.main_window import MainWindow
 from banhelper.ui.theme import build_stylesheet
@@ -91,11 +92,11 @@ class ListenerManager(QObject):
 
 
 class Runtime:
-    def __init__(self, paths: AppPaths, service: BanService, listeners: ListenerManager):
-        self.paths = paths; self.service = service; self.listeners = listeners
+    def __init__(self, paths: AppPaths, service: BanService, listeners: ListenerManager, plugins: PluginManager):
+        self.paths = paths; self.service = service; self.listeners = listeners; self.plugins = plugins
 
     def request_stop(self) -> None:
-        self.listeners.request_stop(); self.service.request_stop()
+        self.plugins.shutdown(); self.listeners.request_stop(); self.service.request_stop()
 
     def wait(self) -> tuple[bool, bool]:
         return self.listeners.wait(), self.service.wait(5.0)
@@ -109,12 +110,14 @@ def load_startup_settings(paths: AppPaths) -> dict:
         connection.close()
 
 
-def create_runtime(paths: AppPaths) -> tuple[BanService, ListenerManager, dict]:
+def create_runtime(paths: AppPaths) -> tuple[BanService, ListenerManager, PluginManager, dict]:
     settings = load_startup_settings(paths)
     service = BanService(paths)
     listeners = ListenerManager(service, settings)
+    plugins = PluginManager(paths.data_dir / "plugins", paths.cache_dir / "plugins", service.signals.log.emit)
     service.signals.settings_changed.connect(listeners.apply)
-    return service, listeners, settings
+    plugins.load_all()
+    return service, listeners, plugins, settings
 
 
 def run(paths: AppPaths | None = None, *, auto_quit_ms: int | None = None, enforce_single_instance: bool = True) -> int:
@@ -134,27 +137,40 @@ def run(paths: AppPaths | None = None, *, auto_quit_ms: int | None = None, enfor
             raise FileNotFoundError(f"Fabric-мод не найден в ресурсах приложения: {fabric_jar()}")
         app_paths.ensure()
         configure_logging(app_paths.logs_dir)
-        service, listeners, _settings = create_runtime(app_paths)
+        service, listeners, plugins, _settings = create_runtime(app_paths)
     except Exception as exc:
+        shutdown_logging()
+        if instance is not None:
+            instance.release()
         QMessageBox.critical(None, "BanHelper не запущен", str(exc))
         return 2
-    runtime = Runtime(app_paths, service, listeners)
-    window = MainWindow(service, app_paths, listeners)
-    if instance is not None:
-        instance.activation_requested.connect(window.activate)
-    listeners.changed.connect(lambda ok, host, port, error: window.fabric_panel.set_running(host, port) if ok else window.fabric_panel.set_error(error))
-    service.start()
-    QTimer.singleShot(150, lambda: window.fabric_panel.set_running(listeners.listener.host, listeners.listener.port) if listeners.listener and listeners.listener.running else None)
-    metrics = QTimer()
-    metrics.setInterval(1000)
-    metrics.timeout.connect(lambda: window.fabric_panel.update_metrics(*listeners.metrics()))
-    metrics.start()
-    window.show()
-    if auto_quit_ms is not None:
-        QTimer.singleShot(max(100, int(auto_quit_ms)), app.quit)
-    exit_code = app.exec()
-    runtime.request_stop()
-    listener_ok, service_ok = runtime.wait()
+
+    runtime = Runtime(app_paths, service, listeners, plugins)
+    listener_ok = False
+    service_ok = False
+    exit_code = 3
+    try:
+        window = MainWindow(service, app_paths, listeners)
+        if instance is not None:
+            instance.activation_requested.connect(window.activate)
+        listeners.changed.connect(lambda ok, host, port, error: window.fabric_panel.set_running(host, port) if ok else window.fabric_panel.set_error(error))
+        service.start()
+        QTimer.singleShot(150, lambda: window.fabric_panel.set_running(listeners.listener.host, listeners.listener.port) if listeners.listener and listeners.listener.running else None)
+        metrics = QTimer()
+        metrics.setInterval(1000)
+        metrics.timeout.connect(lambda: window.fabric_panel.update_metrics(*listeners.metrics()))
+        metrics.start()
+        window.show()
+        if auto_quit_ms is not None:
+            QTimer.singleShot(max(100, int(auto_quit_ms)), app.quit)
+        exit_code = app.exec()
+    finally:
+        runtime.request_stop()
+        listener_ok, service_ok = runtime.wait()
+        if instance is not None:
+            instance.release()
+        shutdown_logging()
+
     if not listener_ok or not service_ok:
         return 3
     return exit_code
