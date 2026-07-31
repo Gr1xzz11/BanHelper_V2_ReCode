@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import http.client
 import json
-import threading
 
 import pytest
 
@@ -29,9 +28,13 @@ def request(port: int, method: str, path: str, payload=None, token=TOKEN, header
 
 def payload(index=1, **changes):
     value = {
-        "protocol_version": 2, "event_id": f"listener-event-{index:04d}",
-        "event_type": "ban", "player": f"Player_{index}", "moderator": "Admin",
-        "reason": "5.5", "server_mode": "FT",
+        "protocol_version": 2,
+        "event_id": f"listener-event-{index:04d}",
+        "event_type": "ban",
+        "player": f"Player_{index}",
+        "moderator": "Admin",
+        "reason": "5.5",
+        "server_mode": "FT",
     }
     value.update(changes)
     return value
@@ -77,6 +80,79 @@ def test_auth_json_size_and_protocol_errors(listener):
     connection.close()
 
 
+def test_opendeck_status_actions_auth_and_cors():
+    actions: list[tuple[str, object | None]] = []
+
+    def on_action(action: str, value: object | None) -> bool:
+        if action == "unknown":
+            raise ValueError("unknown action")
+        actions.append((action, value))
+        return True
+
+    instance = FabricListener(
+        "127.0.0.1",
+        0,
+        TOKEN,
+        lambda _event: True,
+        on_action=on_action,
+    )
+    instance.start()
+    try:
+        status, data = request(instance.port, "GET", "/opendeck/status")
+        assert status == 200 and data["integration"] == "OpenDeck"
+        assert set(data["actions"]) == {"mode", "reason", "confirm", "copy", "skip"}
+        assert request(instance.port, "GET", "/opendeck/status", token="wrong")[0] == 401
+
+        status, data = request(
+            instance.port,
+            "POST",
+            "/opendeck/action",
+            {"action": "reason", "value": "5.5"},
+        )
+        assert status == 202 and data["accepted"]
+        assert actions == [("reason", "5.5")]
+        assert instance.actions_received == 1
+        assert request(
+            instance.port,
+            "POST",
+            "/opendeck/action",
+            {"action": "mode", "value": "RW"},
+            token="wrong",
+        )[0] == 401
+        assert request(
+            instance.port,
+            "POST",
+            "/opendeck/action",
+            {"action": "unknown"},
+        )[0] == 422
+
+        connection = http.client.HTTPConnection("127.0.0.1", instance.port, timeout=3)
+        connection.request(
+            "OPTIONS",
+            "/opendeck/action",
+            headers={
+                "Origin": "http://localhost:57118",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type,x-banhelper-token",
+            },
+        )
+        response = connection.getresponse()
+        response.read()
+        assert response.status == 204
+        assert response.getheader("Access-Control-Allow-Origin") == "*"
+        assert "X-BanHelper-Token" in response.getheader("Access-Control-Allow-Headers")
+        connection.close()
+    finally:
+        instance.request_stop()
+        assert instance.wait(3)
+
+
+def test_opendeck_action_is_unavailable_without_handler(listener):
+    instance, _events = listener
+    status, data = request(instance.port, "POST", "/opendeck/action", {"action": "confirm"})
+    assert status == 503 and data["error"] == "opendeck_unavailable"
+
+
 def test_unknown_mode_uses_listener_fallback():
     events = []
     instance = FabricListener("127.0.0.1", 0, TOKEN, lambda event: events.append(event) or True, fallback_mode="RW")
@@ -85,7 +161,8 @@ def test_unknown_mode_uses_listener_fallback():
         status, _ = request(instance.port, "POST", "/ban", payload(server_mode="unknown"))
         assert status == 202 and events[0].server_mode == "RW"
     finally:
-        instance.request_stop(); assert instance.wait(3)
+        instance.request_stop()
+        assert instance.wait(3)
 
 
 def test_100_sequential_events_are_accepted(listener):
