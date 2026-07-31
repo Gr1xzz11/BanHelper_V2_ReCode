@@ -53,7 +53,7 @@ jobs:
       - name: Upload Linux and OpenDeck release
         uses: actions/upload-artifact@v4
         with:
-          name: BanHelper-Linux-2.2.0-OpenDeck
+          name: BanHelper-Linux-2.2.1-Plugin-Settings
           path: |
             dist/linux/BanHelper.grxt
             dist/linux/SHA256SUMS.txt

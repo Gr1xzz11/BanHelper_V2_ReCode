@@ -214,6 +214,16 @@ class PluginMenuController(QObject):
                 "author": author.strip(),
                 "description": "",
                 "entrypoint": "plugin.py:Plugin",
+                "settings": {
+                    "fields": [
+                        {
+                            "key": "example",
+                            "label": "Пример настройки",
+                            "type": "text",
+                            "default": "",
+                        }
+                    ]
+                },
             }
             (target / "manifest.json").write_text(
                 json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
@@ -263,5 +273,6 @@ class PluginMenuController(QObject):
 def attach_plugin_menu(window: QMainWindow, manager: PluginManager) -> PluginMenuController:
     controller = PluginMenuController(window, manager)
     window.plugin_menu_controller = controller  # type: ignore[attr-defined]
+    window.plugin_manager = manager  # type: ignore[attr-defined]
     window.plugins_menu = controller.menu  # type: ignore[attr-defined]
     return controller
