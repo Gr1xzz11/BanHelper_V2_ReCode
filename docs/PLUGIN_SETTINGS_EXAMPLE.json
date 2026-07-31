@@ -1,0 +1,26 @@
+{
+  "settings": {
+    "fields": [
+      {
+        "key": "host",
+        "label": "Адрес",
+        "type": "text",
+        "default": "127.0.0.1"
+      },
+      {
+        "key": "port",
+        "label": "Порт",
+        "type": "integer",
+        "default": 8765,
+        "minimum": 1024,
+        "maximum": 65535
+      },
+      {
+        "key": "token",
+        "label": "Токен",
+        "type": "password",
+        "default": ""
+      }
+    ]
+  }
+}
