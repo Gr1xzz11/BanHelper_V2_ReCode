@@ -1,0 +1,9 @@
+{
+  "id": "core-tools",
+  "name": "BanHelper Core Tools",
+  "version": "1.0.0",
+  "api_version": 1,
+  "author": "BanHelper",
+  "description": "Проверка Plugin API и быстрое переключение режимов FT/RW.",
+  "entrypoint": "plugin.py:Plugin"
+}
