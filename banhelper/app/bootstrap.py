@@ -28,6 +28,7 @@ class ListenerManager(QObject):
     changed = Signal(bool, str, int, str)
     test_completed = Signal(bool, str)
     copy_requested = Signal()
+    reason_requested = Signal(str)
 
     def __init__(self, service: BanService, settings: dict):
         super().__init__()
@@ -52,7 +53,7 @@ class ListenerManager(QObject):
         return event_id
 
     def handle_action(self, action: str, value: object | None) -> bool:
-        """Translate the small OpenDeck API into the existing service queue."""
+        """Translate the small OpenDeck API into the existing service/UI queue."""
         action = str(action).strip().lower()
         if action == "mode":
             mode = str(value or "").strip().upper()
@@ -60,9 +61,12 @@ class ListenerManager(QObject):
                 raise ValueError("Режим должен быть FT или RW")
             return self.service.command("save_settings", {"manual_mode": mode})
         if action == "reason":
-            event_id = self._require_current()
+            self._require_current()
             reason = normalize_reason(str(value or ""))
-            return self.service.command("update_pending_reason", (event_id, reason))
+            # Route through the same GUI path as a click on the reasons panel.
+            # This redraws the report immediately and then persists the reason.
+            self.reason_requested.emit(reason)
+            return True
         if action == "confirm":
             self._require_current()
             return self.service.command("confirm")
@@ -227,6 +231,7 @@ def run(paths: AppPaths | None = None, *, auto_quit_ms: int | None = None, enfor
         window = MainWindow(service, app_paths, listeners)
         attach_plugin_menu(window, plugins)
         listeners.copy_requested.connect(window.current_panel.copy.click)
+        listeners.reason_requested.connect(window.reasons_panel.select)
         if instance is not None:
             instance.activation_requested.connect(window.activate)
         listeners.changed.connect(
