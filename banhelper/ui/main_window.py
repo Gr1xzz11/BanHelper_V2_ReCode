@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+import json
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QPoint, QTimer, Qt
+from PySide6.QtCore import QByteArray, QPoint, QTimer, Qt, QUrl
 from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QInputDialog, QLabel, QMainWindow, QMessageBox, QPushButton, QSizePolicy, QToolBar, QVBoxLayout, QWidget
 
@@ -13,6 +14,8 @@ from banhelper.domain.models import PendingBan, Statistics
 from banhelper.services.ban_service import BanService
 from banhelper.services.layout_service import clean_profile_name
 from banhelper.domain.validation import ValidationError, normalize_reason
+from banhelper.plugins import PluginAPI, PluginError, PluginInfo, PluginManager
+from banhelper.ui.dialogs.plugin_template_dialog import PluginTemplateDialog
 from banhelper.ui.dialogs.settings_dialog import SettingsDialog
 from banhelper.ui.dialogs.statistics_dialog import StatisticsAdjustmentDialog
 from banhelper.ui.docks.base import PanelDock
@@ -40,7 +43,11 @@ class MainWindow(QMainWindow):
         self.workspace = QWidget(objectName="Workspace"); workspace_layout = QVBoxLayout(self.workspace)
         workspace_label = QLabel("Все панели скрыты\nВерните их через «Вид → Панели»", alignment=Qt.AlignCenter, objectName="Eyebrow")
         workspace_layout.addWidget(workspace_label); self.workspace.setMaximumSize(1, 1); self.setCentralWidget(self.workspace)
+        self.plugin_manager = PluginManager(paths.data_dir / "plugins", paths.config_dir / "plugins.json")
+        self._plugin_submenus: dict[str, object] = {}
         self._build_panels(); self._build_menu(); self._build_toolbar(); self._connect_service(); self._default_layout()
+        self.plugin_manager.load_enabled(self._plugin_api)
+        self._refresh_plugins_menu()
         if self.listener_manager:
             self.listener_manager.test_completed.connect(lambda ok, message: self.statusBar().showMessage(message, 4000))
         self._install_shortcuts()
@@ -120,6 +127,177 @@ class MainWindow(QMainWindow):
         for mode in ("FT", "RW"):
             action = mode_menu.addAction(mode); action.setCheckable(True); action.setData(mode); self.mode_group.addAction(action); action.triggered.connect(lambda _checked=False, value=mode: self.set_manual_mode(value))
         self.mode_group.actions()[0].setChecked(True)
+        self.plugins_menu = self.menuBar().addMenu("Плагины")
+        self.plugins_menu.addAction("Установить .bhplugin…", self.install_plugin)
+        self.plugins_menu.addAction("Создать шаблон плагина…", self.create_plugin_template)
+        self.plugins_menu.addAction("Открыть папку плагинов", self.open_plugins_directory)
+        self.plugins_menu.addAction("Перезагрузить плагины", self.reload_plugins)
+        self.plugins_menu.addSeparator()
+        self.installed_plugins_menu = self.plugins_menu.addMenu("Установленные")
+        self.plugin_extensions_menu = self.plugins_menu.addMenu("Команды плагинов")
+
+    def _plugin_api(self, info: PluginInfo) -> PluginAPI:
+        def add_action(title, callback):
+            submenu = self._plugin_submenus.get(info.plugin_id)
+            if submenu is None:
+                submenu = self.plugin_extensions_menu.addMenu(info.name)
+                self._plugin_submenus[info.plugin_id] = submenu
+
+            def guarded_callback():
+                try:
+                    callback()
+                except Exception as exc:
+                    logging.getLogger(f"banhelper.plugin.{info.plugin_id}").exception("Plugin action failed")
+                    self.statusBar().showMessage(f"{info.name}: {exc}", 5000)
+
+            return submenu.addAction(title, guarded_callback)
+
+        return PluginAPI(
+            plugin_id=info.plugin_id,
+            plugin_name=info.name,
+            data_dir=self.paths.data_dir / "plugin-data" / info.plugin_id,
+            add_menu_action=add_action,
+            show_status=lambda message, timeout: self.statusBar().showMessage(message, timeout),
+            run_command=lambda name, payload: self.service.command(name, payload),
+        )
+
+    def _refresh_plugins_menu(self) -> None:
+        self.installed_plugins_menu.clear()
+        plugins = self.plugin_manager.plugins()
+        if not plugins:
+            empty = self.installed_plugins_menu.addAction("Плагины не установлены")
+            empty.setEnabled(False)
+            return
+        for info in plugins:
+            title = f"{info.name}  {info.version}"
+            if info.error:
+                title += "  [ошибка]"
+            action = self.installed_plugins_menu.addAction(title)
+            action.setCheckable(True); action.setChecked(info.enabled)
+            action.setToolTip(info.error or info.description or info.plugin_id)
+            action.toggled.connect(lambda enabled, value=info.plugin_id: self.toggle_plugin(value, enabled))
+
+    def toggle_plugin(self, plugin_id: str, enabled: bool) -> None:
+        try:
+            info = self.plugin_manager.set_enabled(plugin_id, enabled)
+            if not enabled and plugin_id in self._plugin_submenus:
+                submenu = self._plugin_submenus.pop(plugin_id)
+                self.plugin_extensions_menu.removeAction(submenu.menuAction())
+            if info.error:
+                QMessageBox.warning(self, "Плагин не запущен", f"{info.name}:\n{info.error}")
+            else:
+                self.statusBar().showMessage(
+                    f"{info.name}: {'включён' if enabled else 'выключен'}", 2500
+                )
+        except PluginError as exc:
+            QMessageBox.warning(self, "Ошибка плагина", str(exc))
+        self._refresh_plugins_menu()
+
+    def reload_plugins(self) -> None:
+        self.plugin_extensions_menu.clear(); self._plugin_submenus.clear()
+        plugins = self.plugin_manager.reload()
+        self._refresh_plugins_menu()
+        failed = [info for info in plugins if info.enabled and info.error]
+        if failed:
+            QMessageBox.warning(
+                self, "Некоторые плагины не запущены",
+                "\n".join(f"{item.name}: {item.error}" for item in failed),
+            )
+        else:
+            self.statusBar().showMessage("Плагины перезагружены", 2500)
+
+    def install_plugin(self) -> None:
+        source = QFileDialog.getOpenFileName(
+            self, "Установить плагин", str(Path.home()), "BanHelper plugin (*.bhplugin)"
+        )[0]
+        if not source:
+            return
+        warning = (
+            "Плагины содержат Python-код и работают с правами BanHelper.\n"
+            "Устанавливайте файлы только от авторов, которым доверяете.\n\nПродолжить?"
+        )
+        if QMessageBox.question(self, "Установка плагина", warning) != QMessageBox.Yes:
+            return
+        try:
+            try:
+                info = self.plugin_manager.install(Path(source))
+            except PluginError as exc:
+                if "уже установлен" not in str(exc):
+                    raise
+                if QMessageBox.question(
+                    self, "Обновить плагин?", f"{exc}\nЗаменить установленную версию?"
+                ) != QMessageBox.Yes:
+                    return
+                info = self.plugin_manager.install(Path(source), replace_existing=True)
+            self._refresh_plugins_menu()
+            if QMessageBox.question(
+                self, "Плагин установлен",
+                f"«{info.name}» {info.version} установлен и пока выключен.\nВключить сейчас?"
+            ) == QMessageBox.Yes:
+                self.toggle_plugin(info.plugin_id, True)
+        except (PluginError, OSError, ValueError) as exc:
+            QMessageBox.critical(self, "Не удалось установить плагин", str(exc))
+
+    def open_plugins_directory(self) -> None:
+        self.plugin_manager.plugins_dir.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.plugin_manager.plugins_dir)))
+
+    def create_plugin_template(self) -> None:
+        dialog = PluginTemplateDialog(self)
+        if not dialog.exec():
+            return
+        values = dialog.values()
+        parent = QFileDialog.getExistingDirectory(self, "Куда сохранить исходники плагина")
+        if not parent:
+            return
+        target = Path(parent) / values["id"]
+        if target.exists():
+            QMessageBox.warning(self, "Папка уже существует", str(target))
+            return
+        try:
+            target.mkdir(parents=True)
+            manifest = {
+                "id": values["id"], "name": values["name"], "version": "0.1.0",
+                "author": values["author"], "description": values["description"],
+                "api_version": PluginAPI.API_VERSION, "entrypoint": "main.py",
+            }
+            (target / "plugin.json").write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+            (target / "main.py").write_text(
+                "def activate(api):\n"
+                "    api.log(\"Плагин запущен\")\n"
+                "    api.add_menu_action(\"Проверить плагин\", lambda: api.show_status(\"Плагин работает\"))\n"
+                "\n\n"
+                "def deactivate(api):\n"
+                "    api.log(\"Плагин остановлен\")\n",
+                encoding="utf-8",
+            )
+            (target / "build.py").write_text(
+                "from pathlib import Path\n"
+                "import zipfile\n\n"
+                "root = Path(__file__).resolve().parent\n"
+                "output = root.parent / f\"{root.name}.bhplugin\"\n"
+                "with zipfile.ZipFile(output, \"w\", zipfile.ZIP_DEFLATED) as archive:\n"
+                "    for path in root.rglob(\"*\"):\n"
+                "        if path.is_file() and path.name != \"build.py\" and \"__pycache__\" not in path.parts:\n"
+                "            archive.write(path, path.relative_to(root).as_posix())\n"
+                "print(output)\n",
+                encoding="utf-8",
+            )
+            (target / "README.md").write_text(
+                f"# {values['name']}\n\n"
+                "Измените `main.py`, затем выполните `python build.py`.\n"
+                "Полученный `.bhplugin` устанавливается через меню «Плагины» BanHelper.\n\n"
+                "API: `add_menu_action`, `show_status`, `command`, `log`, `data_dir`.\n",
+                encoding="utf-8",
+            )
+            QMessageBox.information(
+                self, "Шаблон создан",
+                f"Исходники: {target}\n\nДля сборки выполните:\npython build.py",
+            )
+        except OSError as exc:
+            QMessageBox.critical(self, "Не удалось создать шаблон", str(exc))
 
     def _build_toolbar(self) -> None:
         toolbar = QToolBar("Состояние", self); toolbar.setObjectName("StatusToolbar"); toolbar.setMovable(False)

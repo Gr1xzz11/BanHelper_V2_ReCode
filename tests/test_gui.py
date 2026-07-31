@@ -55,6 +55,15 @@ def test_panels_can_hide_return_and_lock(qtbot, tmp_path):
     assert not queue_dock.title_bar.close_button.isVisible()
 
 
+def test_plugins_are_a_top_level_menu_not_a_dock(qtbot, tmp_path):
+    widget, _service, _commands = window(qtbot, tmp_path)
+    assert [action.text() for action in widget.menuBar().actions()][-1] == "Плагины"
+    assert "plugins" not in widget.docks
+    actions = [action.text() for action in widget.plugins_menu.actions()]
+    assert "Установить .bhplugin…" in actions
+    assert "Создать шаблон плагина…" in actions
+
+
 def test_reason_buttons_are_cached_between_ft_rw_events(qtbot, tmp_path):
     widget, _service, _commands = window(qtbot, tmp_path)
     widget.reasons_panel.set_mode("FT")
