@@ -7,163 +7,28 @@
   "CodePathLin": "plugin.html",
   "CodePathWin": "plugin.html",
   "CodePathMac": "plugin.html",
-  "Icon": "icons/plugin.svg",
+  "Icon": "icons/plugin",
   "Category": "BanHelper",
   "OS": [
     { "Platform": "linux" },
-    { "Platform": "windows", "MinimumVersion": "10" },
-    { "Platform": "mac", "MinimumVersion": "10.15" }
+    { "Platform": "windows" },
+    { "Platform": "mac" }
   ],
   "Actions": [
-    {
-      "Icon": "icons/action.svg",
-      "Name": "FT",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "BanHelper: режим FT",
-      "UUID": "dev.gr1xzz1.banhelper.mode.ft",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "RW",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "BanHelper: режим RW",
-      "UUID": "dev.gr1xzz1.banhelper.mode.rw",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "Копировать",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Скопировать текущий отчёт",
-      "UUID": "dev.gr1xzz1.banhelper.copy",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "Подтвердить",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Подтвердить текущий бан",
-      "UUID": "dev.gr1xzz1.banhelper.confirm",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "Пропустить",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Переместить текущую карточку в конец очереди",
-      "UUID": "dev.gr1xzz1.banhelper.skip",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "5.5",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Выбрать причину 5.5",
-      "UUID": "dev.gr1xzz1.banhelper.reason.5_5",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "LIV",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Выбрать причину LIV",
-      "UUID": "dev.gr1xzz1.banhelper.reason.liv",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "4.3.1",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Выбрать причину 4.3.1",
-      "UUID": "dev.gr1xzz1.banhelper.reason.4_3_1",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "4.3.2",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Выбрать причину 4.3.2",
-      "UUID": "dev.gr1xzz1.banhelper.reason.4_3_2",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "1.11",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Выбрать причину 1.11",
-      "UUID": "dev.gr1xzz1.banhelper.reason.1_11",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "2.12",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Выбрать причину 2.12",
-      "UUID": "dev.gr1xzz1.banhelper.reason.2_12",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "4.1",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Выбрать причину 4.1",
-      "UUID": "dev.gr1xzz1.banhelper.reason.4_1",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "4.6",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Выбрать причину 4.6",
-      "UUID": "dev.gr1xzz1.banhelper.reason.4_6",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "4.7",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Выбрать причину 4.7",
-      "UUID": "dev.gr1xzz1.banhelper.reason.4_7",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    },
-    {
-      "Icon": "icons/action.svg",
-      "Name": "4.8",
-      "States": [{ "Image": "icons/action.svg" }],
-      "Controllers": ["Keypad"],
-      "SupportedInMultiActions": true,
-      "Tooltip": "Выбрать причину 4.8",
-      "UUID": "dev.gr1xzz1.banhelper.reason.4_8",
-      "PropertyInspectorPath": "propertyInspector/settings.html"
-    }
+    { "Name": "FT", "UUID": "dev.gr1xzz1.banhelper.mode.ft", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "BanHelper: режим FT", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "RW", "UUID": "dev.gr1xzz1.banhelper.mode.rw", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "BanHelper: режим RW", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "Копировать", "UUID": "dev.gr1xzz1.banhelper.copy", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Скопировать текущий отчёт", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "Подтвердить", "UUID": "dev.gr1xzz1.banhelper.confirm", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Подтвердить текущий бан", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "Пропустить", "UUID": "dev.gr1xzz1.banhelper.skip", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Переместить карточку в конец очереди", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "5.5", "UUID": "dev.gr1xzz1.banhelper.reason.5_5", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Выбрать причину 5.5", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "LIV", "UUID": "dev.gr1xzz1.banhelper.reason.liv", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Выбрать причину LIV", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "4.3.1", "UUID": "dev.gr1xzz1.banhelper.reason.4_3_1", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Выбрать причину 4.3.1", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "4.3.2", "UUID": "dev.gr1xzz1.banhelper.reason.4_3_2", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Выбрать причину 4.3.2", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "1.11", "UUID": "dev.gr1xzz1.banhelper.reason.1_11", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Выбрать причину 1.11", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "2.12", "UUID": "dev.gr1xzz1.banhelper.reason.2_12", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Выбрать причину 2.12", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "4.1", "UUID": "dev.gr1xzz1.banhelper.reason.4_1", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Выбрать причину 4.1", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "4.6", "UUID": "dev.gr1xzz1.banhelper.reason.4_6", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Выбрать причину 4.6", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "4.7", "UUID": "dev.gr1xzz1.banhelper.reason.4_7", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Выбрать причину 4.7", "PropertyInspectorPath": "propertyInspector/settings.html" },
+    { "Name": "4.8", "UUID": "dev.gr1xzz1.banhelper.reason.4_8", "Icon": "icons/action", "States": [{ "Image": "icons/action" }], "Tooltip": "Выбрать причину 4.8", "PropertyInspectorPath": "propertyInspector/settings.html" }
   ]
 }
