@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import zipfile
 from pathlib import Path
 
@@ -12,6 +11,21 @@ OUTPUT_NAME = "BanHelper-AKP153.OpenDeckPlugin"
 
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def image_exists(source: Path, value: object) -> bool:
+    if not value:
+        return False
+    base = source / str(value)
+    return any(
+        candidate.is_file()
+        for candidate in (
+            base,
+            Path(str(base) + ".svg"),
+            Path(str(base) + "@2x.png"),
+            Path(str(base) + ".png"),
+        )
+    )
 
 
 def validate(source: Path) -> dict:
@@ -25,13 +39,19 @@ def validate(source: Path) -> dict:
         raise ValueError("Unexpected action UUID")
     if len(set(uuids)) != len(uuids):
         raise ValueError("Duplicate action UUID")
-    required = [manifest.get("CodePath"), manifest.get("Icon")]
+
+    exact_paths = [manifest.get("CodePath")]
+    image_paths = [manifest.get("Icon")]
     for action in actions:
-        required.append(action.get("Icon"))
-        required.append(action.get("PropertyInspectorPath"))
-        for state in action.get("States", []):
-            required.append(state.get("Image"))
-    missing = sorted({str(path) for path in required if not path or not (source / str(path)).is_file()})
+        exact_paths.append(action.get("PropertyInspectorPath"))
+        image_paths.append(action.get("Icon"))
+        image_paths.extend(state.get("Image") for state in action.get("States", []))
+
+    missing_exact = sorted(
+        {str(path) for path in exact_paths if not path or not (source / str(path)).is_file()}
+    )
+    missing_images = sorted({str(path) for path in image_paths if not image_exists(source, path)})
+    missing = missing_exact + missing_images
     if missing:
         raise FileNotFoundError(f"Missing plugin assets: {', '.join(missing)}")
     return manifest
