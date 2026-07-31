@@ -13,6 +13,17 @@ on:
       - "run.py"
       - "scripts/build_linux.sh"
       - ".github/workflows/build-linux.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "banhelper/**"
+      - "assets/**"
+      - "release/banhelper-bridge-2.0.0.jar"
+      - "packaging/**"
+      - "requirements-build.txt"
+      - "run.py"
+      - "scripts/build_linux.sh"
+      - ".github/workflows/build-linux.yml"
 
 jobs:
   linux:
