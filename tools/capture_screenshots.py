@@ -45,6 +45,8 @@ def main() -> None:
         window.set_locked(True); save(window, output / "08-locked-panels.png", app)
         window.set_locked(False); window.restoreState(default_state, 2); app.processEvents(); window.addDockWidget(window.dockWidgetArea(window.docks["queue"]), window.docks["statistics"]); window.tabifyDockWidget(window.docks["queue"], window.docks["statistics"]); window.docks["statistics"].raise_(); save(window, output / "09-changed-layout.png", app)
         window._restore_dock_state(default_state); window.resize(1100, 700); save(window, output / "10-minimum-size.png", app)
+        window.plugins_menu.popup(window.menuBar().mapToGlobal(window.menuBar().rect().bottomLeft()))
+        app.processEvents(); window.plugins_menu.grab().save(str(output / "11-plugins-menu.png")); window.plugins_menu.close()
         window.close()
 
 
