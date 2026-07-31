@@ -2,7 +2,7 @@
   "Name": "BanHelper AKP153",
   "Description": "15-кнопочное управление BanHelper из OpenDeck",
   "Author": "Gr1xzz1",
-  "Version": "1.0.0",
+  "Version": "1.0.1",
   "CodePath": "plugin.html",
   "CodePathLin": "plugin.html",
   "CodePathWin": "plugin.html",
