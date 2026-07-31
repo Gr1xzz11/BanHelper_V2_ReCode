@@ -1,13 +1,29 @@
 # BanHelper Plugin API v1
 
-BanHelper 2.1.0 loads plugins from the user data directory:
+BanHelper 2.1.1 показывает управление расширениями в верхнем меню **Плагины**.
 
-- Linux: `$XDG_DATA_HOME/banhelper/plugins` or `~/.local/share/banhelper/plugins`
+Доступно:
+
+- установка и обновление `.bhplugin`;
+- включение и выключение без ручного редактирования файлов;
+- удаление сторонних плагинов;
+- перезагрузка;
+- открытие папки плагинов;
+- создание готового шаблона с `manifest.json`, `plugin.py` и `build.py`;
+- команды активных плагинов прямо в интерфейсе.
+
+При первом запуске устанавливается и включается встроенный **BanHelper Core Tools**. Он проверяет Plugin API и переключает режимы FT/RW.
+
+## Каталоги
+
+- Linux: `$XDG_DATA_HOME/banhelper/plugins` или `~/.local/share/banhelper/plugins`
 - Windows: `%APPDATA%\BanHelper\plugins`
 
-A plugin can be an unpacked directory or a ZIP archive renamed to `.bhplugin`.
+Состояние включения хранится отдельно в конфигурационном каталоге `plugins.json`.
 
 ## Bundle layout
+
+`.bhplugin` является ZIP-архивом:
 
 ```text
 my-plugin.bhplugin
@@ -34,26 +50,43 @@ my-plugin.bhplugin
 ```python
 class Plugin:
     def activate(self, context):
-        context.register_action("echo", self.echo)
+        self.context = context
+        context.register_action(
+            "echo",
+            self.echo,
+            "Повторить payload",
+        )
         context.log("INFO", "ready")
 
     def echo(self, payload):
+        context = self.context
+        context.show_status("Плагин работает")
         return payload
 
     def deactivate(self):
-        pass
+        self.context.log("INFO", "stopped")
 ```
 
-The full action id becomes `dev.example.echo.echo`.
+Полный ID команды станет `dev.example.echo.echo`.
 
-## Rules
+## PluginContext
 
-- `api_version` must currently be `1`.
-- Plugin and action IDs may contain lowercase ASCII letters, digits, `.`, `_`, and `-`.
-- Archives are checked for path traversal before extraction.
-- A plugin executes Python code with the same user permissions as BanHelper. Install only trusted bundles.
-- Plugin failures are isolated during discovery: a broken bundle is logged and other plugins continue loading.
+- `context.metadata`, `context.plugin_id`, `context.plugin_name`;
+- `context.data_dir` — постоянная папка данных плагина;
+- `context.register_action(id, handler, title=None)` — команда в меню;
+- `context.show_status(message, timeout_ms=3000)` — сообщение в status bar;
+- `context.command(name, payload=None)` — команда BanService;
+- `context.log(level, message)` — запись в журнал.
 
-## OpenDeck and Ajazz AKP153
+## Ограничения и безопасность
 
-Hardware support belongs to OpenDeck, not to BanHelper's Python plugin loader. For Ajazz AKP153 install the dedicated OpenDeck device plugin, then install a BanHelper action plugin/profile in OpenDeck. OpenDeck uses Stream Deck/OpenAction-style plugin manifests and processes; `.bhplugin` and OpenDeck plugin packages are separate formats and must not be renamed into one another.
+- `api_version` сейчас равен `1`;
+- ID содержит строчные ASCII-буквы, цифры, `.`, `_` и `-`;
+- архив ограничен 25 МБ, 256 файлами и 50 МБ после распаковки;
+- запрещены абсолютные пути, `..` и символические ссылки;
+- плагины выполняют Python-код с правами пользователя BanHelper — устанавливайте только доверенные файлы;
+- ошибка одного плагина не должна ломать загрузку остальных.
+
+## OpenDeck и Ajazz AKP153
+
+`.bhplugin` и плагины OpenDeck — разные форматы. Поддержка самого Ajazz AKP153 устанавливается в OpenDeck отдельно. Для управления BanHelper с клавиатуры потребуется отдельный OpenDeck action plugin или локальный командный API BanHelper.
