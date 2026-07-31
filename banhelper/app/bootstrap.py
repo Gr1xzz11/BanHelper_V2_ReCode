@@ -19,6 +19,7 @@ from banhelper.infrastructure.single_instance import SingleInstance
 from banhelper.plugins import PluginManager
 from banhelper.services.ban_service import BanService
 from banhelper.ui.main_window import MainWindow
+from banhelper.ui.plugin_menu import attach_plugin_menu
 from banhelper.ui.theme import build_stylesheet
 
 
@@ -114,9 +115,13 @@ def create_runtime(paths: AppPaths) -> tuple[BanService, ListenerManager, Plugin
     settings = load_startup_settings(paths)
     service = BanService(paths)
     listeners = ListenerManager(service, settings)
-    plugins = PluginManager(paths.data_dir / "plugins", paths.cache_dir / "plugins", service.signals.log.emit)
+    plugins = PluginManager(
+        paths.data_dir / "plugins",
+        paths.cache_dir / "plugins",
+        service.signals.log.emit,
+        paths.config_dir / "plugins.json",
+    )
     service.signals.settings_changed.connect(listeners.apply)
-    plugins.load_all()
     return service, listeners, plugins, settings
 
 
@@ -151,6 +156,7 @@ def run(paths: AppPaths | None = None, *, auto_quit_ms: int | None = None, enfor
     exit_code = 3
     try:
         window = MainWindow(service, app_paths, listeners)
+        attach_plugin_menu(window, plugins)
         if instance is not None:
             instance.activation_requested.connect(window.activate)
         listeners.changed.connect(lambda ok, host, port, error: window.fabric_panel.set_running(host, port) if ok else window.fabric_panel.set_error(error))
