@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>BanHelper AKP153</title>
+</head>
+<body>
+<script>
+"use strict";
+
+let socket = null;
+let pluginUUID = "";
+let settings = {
+  endpoint: "http://127.0.0.1:8765",
+  token: "banhelper-local"
+};
+
+const actions = {
+  "dev.gr1xzz1.banhelper.mode.ft": { label: "FT", action: "mode", value: "FT" },
+  "dev.gr1xzz1.banhelper.mode.rw": { label: "RW", action: "mode", value: "RW" },
+  "dev.gr1xzz1.banhelper.copy": { label: "COPY", action: "copy" },
+  "dev.gr1xzz1.banhelper.confirm": { label: "OK", action: "confirm" },
+  "dev.gr1xzz1.banhelper.skip": { label: "SKIP", action: "skip" },
+  "dev.gr1xzz1.banhelper.reason.5_5": { label: "5.5", action: "reason", value: "5.5" },
+  "dev.gr1xzz1.banhelper.reason.liv": { label: "LIV", action: "reason", value: "LIV" },
+  "dev.gr1xzz1.banhelper.reason.4_3_1": { label: "4.3.1", action: "reason", value: "4.3.1" },
+  "dev.gr1xzz1.banhelper.reason.4_3_2": { label: "4.3.2", action: "reason", value: "4.3.2" },
+  "dev.gr1xzz1.banhelper.reason.1_11": { label: "1.11", action: "reason", value: "1.11" },
+  "dev.gr1xzz1.banhelper.reason.2_12": { label: "2.12", action: "reason", value: "2.12" },
+  "dev.gr1xzz1.banhelper.reason.4_1": { label: "4.1", action: "reason", value: "4.1" },
+  "dev.gr1xzz1.banhelper.reason.4_6": { label: "4.6", action: "reason", value: "4.6" },
+  "dev.gr1xzz1.banhelper.reason.4_7": { label: "4.7", action: "reason", value: "4.7" },
+  "dev.gr1xzz1.banhelper.reason.4_8": { label: "4.8", action: "reason", value: "4.8" }
+};
+
+function send(message) {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify(message));
+  }
+}
+
+function setTitle(context, title) {
+  send({
+    event: "setTitle",
+    context,
+    payload: { title, target: 0 }
+  });
+}
+
+function showResult(context, ok) {
+  send({ event: ok ? "showOk" : "showAlert", context });
+}
+
+async function executeAction(message) {
+  const command = actions[message.action];
+  if (!command) {
+    showResult(message.context, false);
+    return;
+  }
+
+  try {
+    const endpoint = String(settings.endpoint || "http://127.0.0.1:8765").replace(/\/+$/, "");
+    const response = await fetch(endpoint + "/opendeck/action", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-BanHelper-Token": String(settings.token || "")
+      },
+      body: JSON.stringify({ action: command.action, value: command.value })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || `HTTP ${response.status}`);
+    }
+    showResult(message.context, true);
+  } catch (error) {
+    console.error("BanHelper action failed", error);
+    showResult(message.context, false);
+  }
+}
+
+function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info) {
+  pluginUUID = uuid;
+  socket = new WebSocket(`ws://127.0.0.1:${port}`);
+  socket.onopen = () => {
+    send({ event: registerEvent, uuid });
+    send({ event: "getGlobalSettings", context: uuid });
+  };
+  socket.onmessage = async (event) => {
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+
+    if (message.event === "didReceiveGlobalSettings") {
+      settings = Object.assign(settings, message.payload?.settings || {});
+      return;
+    }
+    if (message.event === "willAppear") {
+      const command = actions[message.action];
+      if (command) setTitle(message.context, command.label);
+      return;
+    }
+    if (message.event === "keyDown") {
+      await executeAction(message);
+    }
+  };
+  socket.onerror = (error) => console.error("OpenDeck socket error", error);
+}
+</script>
+</body>
+</html>
