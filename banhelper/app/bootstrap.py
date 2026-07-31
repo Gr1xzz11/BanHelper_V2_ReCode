@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import sys
-import threading
 import http.client
 import json
+import sys
+import threading
 
 from PySide6.QtCore import QObject, QTimer, Qt, Signal
 from PySide6.QtGui import QGuiApplication, QIcon
@@ -16,6 +16,7 @@ from banhelper.infrastructure.fabric_listener import FabricListener
 from banhelper.infrastructure.logging_setup import configure_logging
 from banhelper.infrastructure.repositories import BanRepository
 from banhelper.infrastructure.single_instance import SingleInstance
+from banhelper.plugins import PluginManager
 from banhelper.services.ban_service import BanService
 from banhelper.ui.main_window import MainWindow
 from banhelper.ui.theme import build_stylesheet
@@ -91,11 +92,11 @@ class ListenerManager(QObject):
 
 
 class Runtime:
-    def __init__(self, paths: AppPaths, service: BanService, listeners: ListenerManager):
-        self.paths = paths; self.service = service; self.listeners = listeners
+    def __init__(self, paths: AppPaths, service: BanService, listeners: ListenerManager, plugins: PluginManager):
+        self.paths = paths; self.service = service; self.listeners = listeners; self.plugins = plugins
 
     def request_stop(self) -> None:
-        self.listeners.request_stop(); self.service.request_stop()
+        self.plugins.shutdown(); self.listeners.request_stop(); self.service.request_stop()
 
     def wait(self) -> tuple[bool, bool]:
         return self.listeners.wait(), self.service.wait(5.0)
@@ -109,12 +110,14 @@ def load_startup_settings(paths: AppPaths) -> dict:
         connection.close()
 
 
-def create_runtime(paths: AppPaths) -> tuple[BanService, ListenerManager, dict]:
+def create_runtime(paths: AppPaths) -> tuple[BanService, ListenerManager, PluginManager, dict]:
     settings = load_startup_settings(paths)
     service = BanService(paths)
     listeners = ListenerManager(service, settings)
+    plugins = PluginManager(paths.data_dir / "plugins", paths.cache_dir / "plugins", service.signals.log.emit)
     service.signals.settings_changed.connect(listeners.apply)
-    return service, listeners, settings
+    plugins.load_all()
+    return service, listeners, plugins, settings
 
 
 def run(paths: AppPaths | None = None, *, auto_quit_ms: int | None = None, enforce_single_instance: bool = True) -> int:
@@ -134,11 +137,11 @@ def run(paths: AppPaths | None = None, *, auto_quit_ms: int | None = None, enfor
             raise FileNotFoundError(f"Fabric-мод не найден в ресурсах приложения: {fabric_jar()}")
         app_paths.ensure()
         configure_logging(app_paths.logs_dir)
-        service, listeners, _settings = create_runtime(app_paths)
+        service, listeners, plugins, _settings = create_runtime(app_paths)
     except Exception as exc:
         QMessageBox.critical(None, "BanHelper не запущен", str(exc))
         return 2
-    runtime = Runtime(app_paths, service, listeners)
+    runtime = Runtime(app_paths, service, listeners, plugins)
     window = MainWindow(service, app_paths, listeners)
     if instance is not None:
         instance.activation_requested.connect(window.activate)
