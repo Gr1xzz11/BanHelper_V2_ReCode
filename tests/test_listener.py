@@ -99,5 +99,9 @@ def test_100_sequential_events_are_accepted(listener):
 def test_occupied_port_is_reported(listener):
     instance, _events = listener
     other = FabricListener("127.0.0.1", instance.port, TOKEN, lambda _event: True)
-    with pytest.raises(OSError):
-        other.start()
+    try:
+        with pytest.raises(OSError):
+            other.start()
+    finally:
+        other.request_stop()
+        assert other.wait(3)
