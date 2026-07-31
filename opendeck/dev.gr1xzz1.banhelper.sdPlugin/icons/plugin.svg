@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="24" fill="#151a23"/>
+  <rect x="7" y="7" width="130" height="130" rx="19" fill="none" stroke="#6e83ff" stroke-width="5"/>
+  <text x="72" y="84" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="42" font-weight="700" fill="#ffffff">BH</text>
+</svg>

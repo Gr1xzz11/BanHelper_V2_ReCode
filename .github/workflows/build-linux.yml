@@ -7,24 +7,28 @@ on:
     paths:
       - "banhelper/**"
       - "builtin_plugins/**"
+      - "opendeck/**"
       - "assets/**"
       - "release/banhelper-bridge-2.0.0.jar"
       - "packaging/**"
       - "requirements-build.txt"
       - "run.py"
       - "scripts/build_linux.sh"
+      - "scripts/build_opendeck_plugin.py"
       - ".github/workflows/build-linux.yml"
   pull_request:
     branches: [main]
     paths:
       - "banhelper/**"
       - "builtin_plugins/**"
+      - "opendeck/**"
       - "assets/**"
       - "release/banhelper-bridge-2.0.0.jar"
       - "packaging/**"
       - "requirements-build.txt"
       - "run.py"
       - "scripts/build_linux.sh"
+      - "scripts/build_opendeck_plugin.py"
       - ".github/workflows/build-linux.yml"
 
 jobs:
@@ -44,15 +48,19 @@ jobs:
           sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
       - name: Build and smoke-test GRXT
         run: ./scripts/build_linux.sh
-      - name: Upload Linux release
+      - name: Build OpenDeck AKP153 plugin
+        run: python scripts/build_opendeck_plugin.py
+      - name: Upload Linux and OpenDeck release
         uses: actions/upload-artifact@v4
         with:
-          name: BanHelper-Linux-2.1.1
+          name: BanHelper-Linux-2.2.0-OpenDeck
           path: |
             dist/linux/BanHelper.grxt
             dist/linux/SHA256SUMS.txt
             dist/linux/banhelper.desktop
             dist/linux/banhelper.png
             dist/linux/banhelper.svg
+            dist/opendeck/BanHelper-AKP153.OpenDeckPlugin
+            dist/opendeck/BanHelper-AKP153-SHA256SUMS.txt
             release/banhelper-bridge-2.0.0.jar
           if-no-files-found: error
