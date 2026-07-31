@@ -1,6 +1,6 @@
 # BanHelper Plugin API v1
 
-BanHelper 2.1.1 показывает управление расширениями в верхнем меню **Плагины**.
+BanHelper 2.2.1 показывает управление расширениями в верхнем меню **Плагины** и отдельную вкладку **Настройки → Плагины**.
 
 Доступно:
 
@@ -10,7 +10,8 @@ BanHelper 2.1.1 показывает управление расширениям
 - перезагрузка;
 - открытие папки плагинов;
 - создание готового шаблона с `manifest.json`, `plugin.py` и `build.py`;
-- команды активных плагинов прямо в интерфейсе.
+- команды активных плагинов прямо в интерфейсе;
+- выбор установленного плагина и редактирование объявленных им настроек.
 
 При первом запуске устанавливается и включается встроенный **BanHelper Core Tools**. Он проверяет Plugin API и переключает режимы FT/RW.
 
@@ -19,7 +20,7 @@ BanHelper 2.1.1 показывает управление расширениям
 - Linux: `$XDG_DATA_HOME/banhelper/plugins` или `~/.local/share/banhelper/plugins`
 - Windows: `%APPDATA%\BanHelper\plugins`
 
-Состояние включения хранится отдельно в конфигурационном каталоге `plugins.json`.
+Состояние включения хранится отдельно в конфигурационном каталоге `plugins.json`. Данные каждого плагина находятся в `plugins/data/<plugin-id>`.
 
 ## Bundle layout
 
@@ -41,16 +42,57 @@ my-plugin.bhplugin
   "api_version": 1,
   "entrypoint": "plugin.py:Plugin",
   "description": "Example BanHelper plugin",
-  "author": "Example"
+  "author": "Example",
+  "settings": {
+    "fields": [
+      {
+        "key": "endpoint",
+        "label": "Адрес сервера",
+        "type": "text",
+        "default": "127.0.0.1"
+      },
+      {
+        "key": "token",
+        "label": "Токен",
+        "type": "password",
+        "default": ""
+      },
+      {
+        "key": "timeout",
+        "label": "Таймаут",
+        "type": "number",
+        "default": 2.0,
+        "minimum": 0.2,
+        "maximum": 10.0,
+        "decimals": 1
+      }
+    ]
+  }
 }
 ```
+
+Поддерживаемые типы полей:
+
+- `text` — обычная строка;
+- `password` — строка со скрытым вводом;
+- `integer` — целое число с `minimum` и `maximum`;
+- `number` — дробное число с `minimum`, `maximum` и `decimals`;
+- `boolean` — флажок;
+- `choice` — список значений из `options`.
+
+Настройки сохраняются в `context.data_dir/settings.json`. После нажатия **Сохранить** активный плагин автоматически перезапускается и читает новые значения.
 
 `plugin.py`:
 
 ```python
+import json
+
+
 class Plugin:
     def activate(self, context):
         self.context = context
+        path = context.data_dir / "settings.json"
+        self.settings = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
         context.register_action(
             "echo",
             self.echo,
@@ -59,8 +101,7 @@ class Plugin:
         context.log("INFO", "ready")
 
     def echo(self, payload):
-        context = self.context
-        context.show_status("Плагин работает")
+        self.context.show_status("Плагин работает")
         return payload
 
     def deactivate(self):
@@ -89,4 +130,4 @@ class Plugin:
 
 ## OpenDeck и Ajazz AKP153
 
-`.bhplugin` и плагины OpenDeck — разные форматы. Поддержка самого Ajazz AKP153 устанавливается в OpenDeck отдельно. Для управления BanHelper с клавиатуры потребуется отдельный OpenDeck action plugin или локальный командный API BanHelper.
+`.bhplugin` и плагины OpenDeck — разные форматы. OpenDeck управляет физическими кнопками AKP153, а `.bhplugin` расширяет BanHelper. Настройки `BanHelper AKP153 Bridge` доступны в **Настройки → Плагины**: адрес, порт, токен и таймаут.
