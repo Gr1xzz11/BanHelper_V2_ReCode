@@ -7,24 +7,28 @@ on:
     paths:
       - "banhelper/**"
       - "builtin_plugins/**"
+      - "opendeck/**"
       - "assets/**"
       - "release/banhelper-bridge-2.0.0.jar"
       - "packaging/banhelper.spec"
       - "requirements-build.txt"
       - "run.py"
       - "scripts/build_windows.ps1"
+      - "scripts/build_opendeck_plugin.py"
       - ".github/workflows/build-windows.yml"
   pull_request:
     branches: [main]
     paths:
       - "banhelper/**"
       - "builtin_plugins/**"
+      - "opendeck/**"
       - "assets/**"
       - "release/banhelper-bridge-2.0.0.jar"
       - "packaging/banhelper.spec"
       - "requirements-build.txt"
       - "run.py"
       - "scripts/build_windows.ps1"
+      - "scripts/build_opendeck_plugin.py"
       - ".github/workflows/build-windows.yml"
 
 jobs:
@@ -41,12 +45,16 @@ jobs:
       - name: Build and smoke-test EXE
         shell: pwsh
         run: ./scripts/build_windows.ps1 -PythonCommand python
-      - name: Upload Windows release
+      - name: Build OpenDeck AKP153 plugin
+        run: python scripts/build_opendeck_plugin.py
+      - name: Upload Windows and OpenDeck release
         uses: actions/upload-artifact@v4
         with:
-          name: BanHelper-Windows-2.1.1
+          name: BanHelper-Windows-2.2.0-OpenDeck
           path: |
             dist/windows/BanHelper.exe
             dist/windows/SHA256SUMS.txt
+            dist/opendeck/BanHelper-AKP153.OpenDeckPlugin
+            dist/opendeck/BanHelper-AKP153-SHA256SUMS.txt
             release/banhelper-bridge-2.0.0.jar
           if-no-files-found: error
