@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "banhelper/**"
+      - "builtin_plugins/**"
       - "assets/**"
       - "release/banhelper-bridge-2.0.0.jar"
       - "packaging/**"
@@ -17,6 +18,7 @@ on:
     branches: [main]
     paths:
       - "banhelper/**"
+      - "builtin_plugins/**"
       - "assets/**"
       - "release/banhelper-bridge-2.0.0.jar"
       - "packaging/**"
@@ -45,7 +47,7 @@ jobs:
       - name: Upload Linux release
         uses: actions/upload-artifact@v4
         with:
-          name: BanHelper-Linux-2.1.0
+          name: BanHelper-Linux-2.1.1
           path: |
             dist/linux/BanHelper.grxt
             dist/linux/SHA256SUMS.txt
