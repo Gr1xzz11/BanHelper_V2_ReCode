@@ -37,13 +37,65 @@ class ListenerManager(QObject):
         self.configuration = {}
         self._stop_thread: threading.Thread | None = None
         self._current_event_id: str | None = None
+        self._current_status: dict | None = None
+        self._queue_size = 0
+        self._statistics = {"total": 0, "week": 0, "target": 0, "percent": 0, "ft": 0, "rw": 0}
         self._current_lock = threading.Lock()
+        self.service.signals.initialized.connect(self._remember_initialized)
         self.service.signals.current_changed.connect(self._remember_current)
+        self.service.signals.queue_changed.connect(self._remember_queue)
+        self.service.signals.statistics_changed.connect(self._remember_statistics)
         self.apply(settings)
+
+    def _remember_initialized(self, current, queue, statistics, _settings) -> None:
+        self._remember_current(current)
+        self._remember_queue(queue)
+        self._remember_statistics(statistics)
 
     def _remember_current(self, current) -> None:
         with self._current_lock:
             self._current_event_id = str(current.event_id) if current else None
+            self._current_status = (
+                {
+                    "event_id": str(current.event_id),
+                    "player": str(current.player),
+                    "reason": str(current.reason or ""),
+                    "mode": str(current.server_mode),
+                    "event_type": str(current.event_type),
+                }
+                if current
+                else None
+            )
+
+    def _remember_queue(self, queue) -> None:
+        with self._current_lock:
+            self._queue_size = len(queue or ())
+
+    def _remember_statistics(self, statistics) -> None:
+        if statistics is None:
+            return
+        snapshot = {
+            "total": int(getattr(statistics, "total", 0)),
+            "week": int(getattr(statistics, "week", 0)),
+            "target": int(getattr(statistics, "target", 0)),
+            "percent": int(getattr(statistics, "percent", 0)),
+            "ft": int(getattr(statistics, "ft", 0)),
+            "rw": int(getattr(statistics, "rw", 0)),
+        }
+        with self._current_lock:
+            self._statistics = snapshot
+
+    def opendeck_status(self) -> dict:
+        with self._current_lock:
+            current = dict(self._current_status) if self._current_status else None
+            statistics = dict(self._statistics)
+            queue_size = self._queue_size
+        return {
+            "has_current": current is not None,
+            "current": current,
+            "queue_size": queue_size,
+            "statistics": statistics,
+        }
 
     def _require_current(self) -> str:
         with self._current_lock:
@@ -63,8 +115,6 @@ class ListenerManager(QObject):
         if action == "reason":
             self._require_current()
             reason = normalize_reason(str(value or ""))
-            # Route through the same GUI path as a click on the reasons panel.
-            # This redraws the report immediately and then persists the reason.
             self.reason_requested.emit(reason)
             return True
         if action == "confirm":
@@ -110,6 +160,7 @@ class ListenerManager(QObject):
                     self.service.signals.log.emit,
                     configuration["fallback_mode"],
                     on_action=self.handle_action,
+                    status_provider=self.opendeck_status,
                 )
                 new_listener.start()
                 self.listener = new_listener
