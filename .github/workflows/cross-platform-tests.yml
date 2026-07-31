@@ -1,0 +1,61 @@
+name: Cross-platform tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python 3.11
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    env:
+      QT_QPA_PLATFORM: offscreen
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Linux Qt runtime
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1
+
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run plugin and GUI tests
+        run: python -m pytest -q tests/test_plugins.py tests/test_gui.py
+
+      - name: Run end-to-end GUI smoke
+        run: python -m tools.smoke_app
+
+      - name: Compile Python sources
+        run: python -m compileall -q banhelper tests tools
+
+      - name: Capture Linux UI
+        if: runner.os == 'Linux'
+        run: python -m tools.capture_screenshots
+
+      - name: Upload Linux UI
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: banhelper-linux-ui
+          path: screenshots/*.png
