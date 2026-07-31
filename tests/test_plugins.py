@@ -6,65 +6,107 @@ from pathlib import Path
 
 import pytest
 
-from banhelper.plugins.manager import PluginManager
+from banhelper.plugins import PluginError, PluginManager
 
 
-def make_plugin(root: Path, *, plugin_id: str = "test.echo") -> Path:
-    source = root / "source"
+def make_plugin(root: Path, *, plugin_id: str = "test.echo", broken: bool = False) -> Path:
+    source = root / f"source-{plugin_id.replace('.', '-')}"
     source.mkdir()
-    (source / "manifest.json").write_text(json.dumps({
-        "id": plugin_id,
-        "name": "Echo",
-        "version": "1.0.0",
-        "api_version": 1,
-        "entrypoint": "plugin.py:Plugin",
-    }), encoding="utf-8")
-    (source / "plugin.py").write_text(
-        "class Plugin:\n"
-        "    def activate(self, context):\n"
-        "        context.register_action('echo', lambda payload: payload)\n"
-        "    def deactivate(self):\n"
-        "        self.stopped = True\n",
+    (source / "manifest.json").write_text(
+        json.dumps(
+            {
+                "id": plugin_id,
+                "name": "Echo",
+                "version": "1.0.0",
+                "api_version": 1,
+                "entrypoint": "plugin.py:Plugin",
+            }
+        ),
         encoding="utf-8",
     )
-    bundle = root / "echo.bhplugin"
-    with zipfile.ZipFile(bundle, "w") as archive:
+    body = (
+        "class Plugin:\n"
+        "    def activate(self, context):\n"
+        "        raise RuntimeError('boom')\n"
+        if broken
+        else
+        "class Plugin:\n"
+        "    def activate(self, context):\n"
+        "        self.context = context\n"
+        "        context.register_action('echo', lambda payload: payload, 'Echo payload')\n"
+        "    def deactivate(self):\n"
+        "        self.context.log('INFO', 'stopped')\n"
+    )
+    (source / "plugin.py").write_text(body, encoding="utf-8")
+    bundle = root / f"{plugin_id}.bhplugin"
+    with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.write(source / "manifest.json", "manifest.json")
         archive.write(source / "plugin.py", "plugin.py")
     return bundle
 
 
-def test_load_bundle_and_invoke_action(tmp_path: Path) -> None:
-    logs = []
-    plugins = tmp_path / "plugins"
-    plugins.mkdir()
+def manager(tmp_path: Path) -> PluginManager:
+    return PluginManager(
+        tmp_path / "plugins",
+        tmp_path / "cache",
+        lambda *_args: None,
+        tmp_path / "config" / "plugins.json",
+    )
+
+
+def test_builtin_plugin_is_seeded_and_enabled(tmp_path: Path) -> None:
+    plugins = manager(tmp_path)
+    core = next(record for record in plugins.records() if record.metadata.plugin_id == "core-tools")
+    assert core.builtin and core.enabled
+    plugins.set_host_callbacks(show_status=lambda *_: None, command=lambda *_: True)
+    plugins.load_enabled()
+    assert plugins.actions_for("core-tools")
+
+
+def test_install_enable_invoke_disable_and_uninstall(tmp_path: Path) -> None:
+    plugins = manager(tmp_path)
     bundle = make_plugin(tmp_path)
-    bundle.replace(plugins / bundle.name)
-    manager = PluginManager(plugins, tmp_path / "cache", lambda level, message: logs.append((level, message)))
-    manager.load_all()
-    assert manager.invoke("test.echo.echo", {"ok": True}) == {"ok": True}
-    assert "test.echo" in manager.loaded
-    manager.shutdown()
-    assert manager.loaded == {}
+    record = plugins.install(bundle)
+    assert record.metadata.plugin_id == "test.echo"
+    assert not record.enabled and not record.active
+
+    plugins.set_host_callbacks(show_status=lambda *_: None, command=lambda *_: True)
+    record = plugins.set_enabled("test.echo", True)
+    assert record.enabled and record.active
+    assert plugins.actions_for("test.echo") == (("test.echo.echo", "Echo payload"),)
+    assert plugins.invoke("test.echo.echo", {"ok": True}) == {"ok": True}
+
+    record = plugins.set_enabled("test.echo", False)
+    assert not record.enabled and not record.active
+    plugins.uninstall("test.echo")
+    assert all(item.metadata.plugin_id != "test.echo" for item in plugins.records())
+
+
+def test_plugin_failure_is_contained(tmp_path: Path) -> None:
+    plugins = manager(tmp_path)
+    plugins.install(make_plugin(tmp_path, plugin_id="test.broken", broken=True))
+    record = plugins.set_enabled("test.broken", True)
+    assert record.enabled and not record.active
+    assert "boom" in record.error
 
 
 def test_rejects_path_traversal(tmp_path: Path) -> None:
-    plugins = tmp_path / "plugins"
-    plugins.mkdir()
-    bundle = plugins / "evil.bhplugin"
+    bundle = tmp_path / "evil.bhplugin"
     with zipfile.ZipFile(bundle, "w") as archive:
         archive.writestr("../escape.py", "bad")
-    manager = PluginManager(plugins, tmp_path / "cache", lambda *_: None)
-    with pytest.raises(ValueError, match="unsafe path"):
-        manager.load(bundle)
+    plugins = manager(tmp_path)
+    with pytest.raises(PluginError, match="Опасный путь"):
+        plugins.install(bundle)
 
 
 def test_rejects_incompatible_api(tmp_path: Path) -> None:
-    plugins = tmp_path / "plugins"
-    plugins.mkdir()
-    source = plugins / "bad"
-    source.mkdir()
-    (source / "manifest.json").write_text(json.dumps({"id": "bad", "name": "Bad", "version": "1", "api_version": 99}), encoding="utf-8")
-    manager = PluginManager(plugins, tmp_path / "cache", lambda *_: None)
-    with pytest.raises(ValueError, match="Unsupported plugin API"):
-        manager.load(source)
+    bundle = tmp_path / "future.bhplugin"
+    with zipfile.ZipFile(bundle, "w") as archive:
+        archive.writestr(
+            "manifest.json",
+            json.dumps({"id": "future", "name": "Future", "version": "1", "api_version": 99}),
+        )
+        archive.writestr("plugin.py", "class Plugin: pass")
+    plugins = manager(tmp_path)
+    with pytest.raises(PluginError, match="поддерживается API 1"):
+        plugins.install(bundle)
