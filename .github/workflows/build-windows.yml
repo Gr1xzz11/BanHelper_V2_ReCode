@@ -50,7 +50,7 @@ jobs:
       - name: Upload Windows and OpenDeck release
         uses: actions/upload-artifact@v4
         with:
-          name: BanHelper-Windows-2.2.0-OpenDeck
+          name: BanHelper-Windows-2.2.1-Plugin-Settings
           path: |
             dist/windows/BanHelper.exe
             dist/windows/SHA256SUMS.txt
